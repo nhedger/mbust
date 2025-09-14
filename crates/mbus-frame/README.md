@@ -69,6 +69,14 @@ pub fn main() {
 }
 ```
 
+## References
+
+The following references were used in the development of this library:
+
+- EN 13757-2, _Communication systems for meters - Part 2: Wired M-Bus communication_
+- EN 60870-5-1, _Telecontrol equipment and systems - Part 5: Transmission protocols - Section one: Transmission frame formats_
+- EN 60870-5-2, _Telecontrol equipment and systems - Part 5: Transmission protocols - Section 2: Link transmission procedures_
+
 ## License
 
 The **mbus-frame** library is open-source software licensed under the [MIT License](LICENSE).
