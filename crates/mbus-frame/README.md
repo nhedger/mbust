@@ -55,7 +55,7 @@ use mbus_frame::LongFrame;
 pub fn main() {
     /// Convert frame to bytes
     let bytes = LongFrame::new(
-        Control::Send { fcb: false }, 
+        Control::Send, 
         Address::Primary(0x01), 
         &[0x00, 0x01, 0x02, 0x03],
     ).to_bytes();
