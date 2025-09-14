@@ -37,7 +37,10 @@ use mbus_frame::ShortFrame;
 
 pub fn main() {
     /// Convert frame to bytes
-    let bytes = ShortFrame::new(0x40, 0x01).to_bytes();
+    let bytes = ShortFrame::new(
+        Control::Initialize, 
+        Address::Primary(0x01),
+    ).to_bytes();
 
     /// Create frame from bytes
     let frame = ShortFrame::from_bytes(&[0x10, 0x40, 0x01, 0x41, 0x16]).unwrap();
@@ -51,7 +54,11 @@ use mbus_frame::LongFrame;
 
 pub fn main() {
     /// Convert frame to bytes
-    let bytes = LongFrame::new(0x53, 0x01, &[0x00, 0x01, 0x02, 0x03]).to_bytes();
+    let bytes = LongFrame::new(
+        Control::Send { fcb: false }, 
+        Address::Primary(0x01), 
+        &[0x00, 0x01, 0x02, 0x03],
+    ).to_bytes();
 
     /// Create frame from bytes
     let frame = LongFrame::from_bytes(&[

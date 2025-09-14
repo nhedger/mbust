@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn it_encodes_the_frame_to_a_byte_vector() {
         let frame = LongFrame::new(
-            Control::Send { fcb: false },
+            Control::Send,
             Address::Primary(0x01),
             &[0x00, 0x01, 0x02, 0x03],
         );
@@ -230,7 +230,7 @@ mod tests {
         assert_eq!(frame.length1, 0x06);
         assert_eq!(frame.length2, 0x06);
         assert_eq!(frame.start2, 0x68);
-        matches!(frame.control, Control::Send { fcb: false });
+        matches!(frame.control, Control::Send);
         matches!(frame.address, Address::Primary(0x01));
         assert_eq!(frame.data, vec![0x00, 0x01, 0x02, 0x03]);
         assert_eq!(frame.checksum, 0x5A);
