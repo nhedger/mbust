@@ -19,49 +19,49 @@ M-Bus frames.
 ### Creating a Single Character frame
 
 ```rust
-use mbus_frame::SingleCharacterFrame;
+use mbus_frame::Frame;
 
 pub fn main() {
     /// Convert frame to bytes
-    let bytes = SingleCharacterFrame::Ack.to_bytes();
+    let bytes = Frame::single(SingleFrameType::Ack).to_bytes();
 
     /// Create frame from bytes
-    let frame = SingleCharacterFrame::from_bytes(&[0xE5]).unwrap();
+    let frame = Frame::from_bytes(&[0xE5]).unwrap();
 }
 ```
 
 ### Creating a Short frame
 
 ```rust
-use mbus_frame::ShortFrame;
+use mbus_frame::Frame;
 
 pub fn main() {
     /// Convert frame to bytes
-    let bytes = ShortFrame::new(
+    let bytes = Frame::short(
         Control::Initialize, 
         Address::Primary(0x01),
     ).to_bytes();
 
     /// Create frame from bytes
-    let frame = ShortFrame::from_bytes(&[0x10, 0x40, 0x01, 0x41, 0x16]).unwrap();
+    let frame = Frame::from_bytes(&[0x10, 0x40, 0x01, 0x41, 0x16]).unwrap();
 }
 ```
 
 ### Creating a Long frame
 
 ```rust
-use mbus_frame::LongFrame;
+use mbus_frame::Frame;
 
 pub fn main() {
     /// Convert frame to bytes
-    let bytes = LongFrame::new(
+    let bytes = Frame::long(
         Control::Send, 
         Address::Primary(0x01), 
         &[0x00, 0x01, 0x02, 0x03],
     ).to_bytes();
 
     /// Create frame from bytes
-    let frame = LongFrame::from_bytes(&[
+    let frame = Frame::from_bytes(&[
         0x68, 0x06, 0x06, 0x68,
         0x53, 0x01, 0x00, 0x01,
         0x02, 0x03, 0x5A, 0x16,

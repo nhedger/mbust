@@ -1,4 +1,4 @@
-use super::Frame;
+use super::Encodable;
 use crate::address::Address;
 use thiserror::Error;
 
@@ -10,6 +10,7 @@ use thiserror::Error;
 /// The format of a short frame is defined in EN 60870-5-2 (§3.2) as a frame
 /// with fixed length in the FT 1.2 format.
 #[derive(Debug)]
+#[derive(Clone)]
 pub struct ShortFrame {
     /// Start byte (0x10)
     ///
@@ -78,7 +79,7 @@ impl ShortFrame {
     }
 }
 
-impl Frame for ShortFrame {
+impl Encodable for ShortFrame {
     type Error = ShortFrameDecodeError;
 
     /// Convert the short frame to a byte vector.

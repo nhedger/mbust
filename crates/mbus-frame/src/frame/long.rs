@@ -1,4 +1,4 @@
-use super::Frame;
+use super::{Encodable, FrameWithControl};
 use crate::address::Address;
 use crate::control::Control;
 use thiserror::Error;
@@ -10,7 +10,7 @@ use thiserror::Error;
 ///
 /// The format of a long frame is defined in EN 60870-5-2 (§3.2) as a frame
 /// with variable length in the FT 1.2 format.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LongFrame {
     /// Start byte (0x68)
     ///
@@ -59,8 +59,17 @@ const START_BYTE: u8 = 0x68;
 /// End byte of an M-Bus long frame
 const END_BYTE: u8 = 0x16;
 
-/// Length of an M-Bus long frame
-const MIN_LENGTH: usize = 8;
+/// Minimum length of an M-Bus long frame
+///
+/// The minimum length of an M-Bus long frame is 8 bytes, which
+/// corresponds to a frame with no user data.
+const MIN_LENGTH: usize = 8; // 6 + 0 + 2
+
+/// Maximum length of an M-Bus long frame
+///
+/// The maximum length of an M-Bus long frame is 259 bytes, which
+/// corresponds to a frame with 253 bytes of user data
+const MAX_LENGTH: usize = 259; // 6 + 253 + 2
 
 const START_1_INDEX: usize = 0;
 const LENGTH_1_INDEX: usize = 1;
@@ -73,17 +82,17 @@ const DATA_START_INDEX: usize = 6;
 /// Implementation of the M-Bus long frame
 impl LongFrame {
     pub fn new(control: Control, address: Address, data: &[u8]) -> Self {
+        let length = 2 + data.len() as u8;
+
         Self {
             start1: START_BYTE,
-            length1: 2 + data.len() as u8,
-            length2: 2 + data.len() as u8,
+            length1: length,
+            length2: length,
             start2: START_BYTE,
             control: control.clone(),
             address: address.clone(),
             data: data.to_vec(),
-            checksum: u8::from(control)
-                .wrapping_add(address.into())
-                .wrapping_add(data.iter().fold(0u8, |acc, &b| acc.wrapping_add(b))),
+            checksum: Self::compute_checksum(control, address, data),
             end: END_BYTE,
         }
     }
@@ -96,7 +105,7 @@ impl LongFrame {
     }
 }
 
-impl Frame for LongFrame {
+impl Encodable for LongFrame {
     type Error = LongFrameDecodeError;
 
     /// Convert the long frame to a byte vector.
@@ -118,8 +127,13 @@ impl Frame for LongFrame {
 
     /// Try decoding a byte slice into a short frame.
     fn try_from_bytes(bytes: &[u8]) -> Result<Self, Self::Error> {
-        // Ensure that the size of the frame is correct
-        if bytes.len() < MIN_LENGTH {
+        // Ensure that the size of the frame isn't too short, or too long
+        if bytes.len() < MIN_LENGTH || bytes.len() > MAX_LENGTH {
+            return Err(LongFrameDecodeError::InvalidSize(bytes.len()));
+        }
+
+        // Ensure that the size of the frame isn't too long
+        if bytes.len() > 253 {
             return Err(LongFrameDecodeError::InvalidSize(bytes.len()));
         }
 
@@ -141,6 +155,16 @@ impl Frame for LongFrame {
             return Err(LongFrameDecodeError::LengthMismatch(
                 bytes[LENGTH_1_INDEX],
                 bytes[LENGTH_2_INDEX],
+            ));
+        }
+
+        // Ensure that the length field is correct
+        let declared_length = bytes[LENGTH_1_INDEX];
+        let expected_frame_size = 4 + declared_length + 2;
+        if bytes.len() != expected_frame_size as usize {
+            return Err(LongFrameDecodeError::InvalidLength(
+                declared_length,
+                (bytes.len() - 6) as u8,
             ));
         }
 
@@ -180,12 +204,21 @@ impl Frame for LongFrame {
     }
 }
 
+impl FrameWithControl for LongFrame {
+    fn with_frame_count_bit(&self, fcb: bool) -> Self {
+        let mut new = self.clone();
+        new.control = self.control.with_frame_count_bit(fcb);
+        new
+    }
+}
 /// Errors that can occur when decoding an M-Bus long frame
 #[derive(Error, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum LongFrameDecodeError {
     #[error("invalid frame size for long frame, expected >=8, got {0}")]
     InvalidSize(usize),
+    #[error("invalid length for long frame, expected {0}, got {1}")]
+    InvalidLength(u8, u8),
     #[error("invalid start byte for long frame, expected 0x10, got {0:#04x}")]
     InvalidStartByte(u8),
     #[error("mismatched start bytes for long frame, expected 0x68, got {0:#04x} and {1:#04x}")]
@@ -245,6 +278,16 @@ mod tests {
     }
 
     #[test]
+    fn it_fails_to_decode_a_frame_longer_than_261_bytes() {
+        let mut bytes = vec![0x68, 0xFF, 0xFF, 0x68, 0x53, 0x01];
+        bytes.extend(vec![0x00; 255]);
+        bytes.push(0x00);
+        bytes.push(0x16);
+        let err = LongFrame::try_from_bytes(&bytes).unwrap_err();
+        assert!(matches!(err, LongFrameDecodeError::InvalidSize(263)));
+    }
+
+    #[test]
     fn it_fails_to_decode_a_frame_with_invalid_start_byte() {
         let bytes = vec![
             0x69, 0x06, 0x06, 0x68, 0x53, 0x01, 0x00, 0x01, 0x02, 0x03, 0x5A, 0x16,
@@ -274,6 +317,18 @@ mod tests {
         assert!(matches!(
             err,
             LongFrameDecodeError::LengthMismatch(0x06, 0x07)
+        ));
+    }
+
+    #[test]
+    fn it_fails_to_decode_a_frame_with_invalid_length() {
+        let bytes = vec![
+            0x68, 0x07, 0x07, 0x68, 0x53, 0x01, 0x00, 0x01, 0x02, 0x03, 0x5A, 0x16,
+        ];
+        let err = LongFrame::try_from_bytes(&bytes).unwrap_err();
+        assert!(matches!(
+            err,
+            LongFrameDecodeError::InvalidLength(0x07, 0x06)
         ));
     }
 

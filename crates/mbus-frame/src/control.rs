@@ -35,6 +35,31 @@ pub enum Control {
     Response,
 }
 
+impl Control {
+    /// Set the frame count bit (FCB) of the control field.
+    ///
+    /// The FCB is only applicable to Send, PriorityRequest, Request, and Response controls.
+    /// The Initialize control does not use the FCB and will be returned unchanged.
+    pub fn with_frame_count_bit(&self, fcb: bool) -> Self {
+        match self {
+            Control::Initialize => *self,
+            _ => {
+                let mut value: u8 = (*self).into();
+                if fcb {
+                    value |= 0x20; // Set the FCB bit (bit 5)
+                } else {
+                    value &= !0x20; // Clear the FCB bit (bit 5)
+                }
+
+                // It doesn't make sense to have FCB set without FCV, so we force
+                // FCV to be set if FCB is set.
+                value |= 0x10; // Set the FCV bit
+                value.try_into().expect("Invalid control value after setting FCB")
+            }
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum ControlDecodeError {
     #[error("Unsupported communication type.")]

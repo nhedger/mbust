@@ -1,4 +1,4 @@
-use super::Frame;
+use super::Encodable;
 use thiserror::Error;
 
 /// M-Bus Single Character Frame
@@ -18,7 +18,7 @@ pub enum SingleCharacterFrame {
     Nack = 0xA2,
 }
 
-impl Frame for SingleCharacterFrame {
+impl Encodable for SingleCharacterFrame {
     type Error = SingleCharacterFrameDecodeError;
 
     /// Convert the single character frame to a byte vector
