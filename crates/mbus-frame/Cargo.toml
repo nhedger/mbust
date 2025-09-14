@@ -1,0 +1,13 @@
+[package]
+name = "mbus-frame"
+description = "An M-Bus frame codec"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+authors = [
+    "Nicolas Hedger <nicolas@hedger.ch>",
+]
+keywords = ["mbus", "m-bus", "meter-bus", "frame", "protocol"]
+
+[dependencies]
+thiserror = "2.0.16"
