@@ -6,6 +6,8 @@ use thiserror::Error;
 pub use long::LongFrame;
 pub use short::ShortFrame;
 pub use single::SingleCharacterFrame;
+use crate::address::Address;
+use crate::control::Control;
 
 /// Trait for M-Bus frames
 pub trait Encodable: Sized {
@@ -32,6 +34,7 @@ pub enum Frame {
     Single(SingleCharacterFrame),
 }
 
+#[derive(Debug)]
 pub enum FrameType {
     Short,
     Long,
@@ -39,6 +42,18 @@ pub enum FrameType {
 }
 
 impl Frame {
+    pub fn new_single(frame: SingleCharacterFrame) -> Self {
+        Frame::Single(frame)
+    }
+
+    pub fn new_short(control: Control, address: Address) -> Self {
+        Frame::Short(ShortFrame::new(control, address))
+    }
+
+    pub fn new_long(control: Control, address: Address, data: Vec<u8>) -> Self {
+        Frame::Long(LongFrame::new(control, address, &data))
+    }
+
     /// Parse an M-Bus frame from a byte slice
     pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, FrameError> {
         match Self::detect_type_from_bytes(bytes)? {
@@ -79,6 +94,16 @@ impl Frame {
     }
 }
 
+impl FrameWithControl for Frame {
+    fn with_frame_count_bit(&self, fcb: bool) -> Self {
+        match self {
+            Frame::Short(frame) => Frame::Short(frame.with_frame_count_bit(fcb)),
+            Frame::Long(frame) => Frame::Long(frame.with_frame_count_bit(fcb)),
+            Frame::Single(_) => self.clone(),
+        }
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum FrameDetectionError {
     #[error("input byte slice is empty")]
@@ -97,4 +122,76 @@ pub enum FrameError {
     LongFrame(#[from] long::LongFrameDecodeError),
     #[error("single character frame parsing failed: {0}")]
     SingleCharacterFrame(#[from] single::SingleCharacterFrameDecodeError),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_detects_a_short_frame() {
+        let bytes = vec![0x10, 0x7B, 0x00, 0x7B, 0x10];
+        let frame_type = Frame::detect_type_from_bytes(&bytes).unwrap();
+        matches!(frame_type, FrameType::Short);
+    }
+
+    #[test]
+    fn it_detects_a_long_frame() {
+        let bytes = vec![0x68, 0x06, 0x06, 0x68, 0x53, 0x01, 0x00, 0x01, 0x02, 0x03, 0x5A, 0x16];
+        let frame_type = Frame::detect_type_from_bytes(&bytes).unwrap();
+        matches!(frame_type, FrameType::Long);
+    }
+
+    #[test]
+    fn it_detects_a_single_character_frame() {
+        let bytes = vec![0xE5];
+        let frame_type = Frame::detect_type_from_bytes(&bytes).unwrap();
+        matches!(frame_type, FrameType::Single);
+    }
+
+    #[test]
+    fn it_fails_to_detect_an_empty_byte_slice() {
+        let bytes = vec![];
+        let err = Frame::detect_type_from_bytes(&bytes).unwrap_err();
+        assert!(matches!(err, FrameDetectionError::Empty));
+    }
+
+    #[test]
+    fn it_fails_to_detect_an_unknown_frame_type() {
+        let bytes = vec![0x00];
+        let err = Frame::detect_type_from_bytes(&bytes).unwrap_err();
+        assert!(matches!(err, FrameDetectionError::UnknownFrameType(0x00)));
+    }
+
+    #[test]
+    fn it_fails_to_parse_an_invalid_short_frame() {
+        let bytes = vec![0x10, 0x00, 0x00, 0x00];
+        let err = Frame::try_from_bytes(&bytes).unwrap_err();
+        assert!(matches!(err, FrameError::ShortFrame(_)));
+    }
+
+    #[test]
+    fn it_fails_to_parse_an_invalid_long_frame() {
+        let bytes = vec![0x68, 0x00, 0x00, 0x68];
+        let err = Frame::try_from_bytes(&bytes).unwrap_err();
+        assert!(matches!(err, FrameError::LongFrame(_)));
+    }
+
+    #[test]
+    fn it_creates_a_new_short_frame() {
+        let frame = Frame::new_short(Control::Request, Address::Primary(1));
+        assert!(matches!(frame, Frame::Short(_)));
+    }
+
+    #[test]
+    fn it_creates_a_new_long_frame() {
+        let frame = Frame::new_long(Control::Request, Address::Primary(1), vec![0x01, 0x02, 0x03]);
+        assert!(matches!(frame, Frame::Long(_)));
+    }
+
+    #[test]
+    fn it_creates_a_new_single_character_frame() {
+        let frame = Frame::new_single(SingleCharacterFrame::Ack);
+        assert!(matches!(frame, Frame::Single(_)));
+    }
 }

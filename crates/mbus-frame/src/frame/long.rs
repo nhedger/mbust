@@ -211,6 +211,7 @@ impl FrameWithControl for LongFrame {
         new
     }
 }
+
 /// Errors that can occur when decoding an M-Bus long frame
 #[derive(Error, Debug)]
 #[allow(clippy::enum_variant_names)]

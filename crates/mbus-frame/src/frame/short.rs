@@ -1,6 +1,7 @@
-use super::Encodable;
+use super::{Encodable, FrameWithControl};
 use crate::address::Address;
 use thiserror::Error;
+use crate::control::Control;
 
 /// M-Bus Short Frame
 ///
@@ -20,20 +21,11 @@ pub struct ShortFrame {
     /// Control
     ///
     /// The control byte is used to indicate the type of frame.
-    control: u8,
+    control: Control,
 
     /// Address
     ///
     /// The address byte specifies the address of the addressed slave.
-    ///
-    /// Valid addresses:
-    /// - 0: reserved for unconfigured slave devices
-    /// - 1-250: primary addresses of slave devices
-    /// - 251: used physical and link-layer management
-    /// - 252: reserved
-    /// - 253: used for secondary addressing
-    /// - 254: used for test and diagnosis (broadcast)
-    /// - 255: use for broadcasting to all slave devices
     address: Address,
 
     /// Checksum
@@ -68,14 +60,20 @@ const END_INDEX: usize = 4;
 /// Implementation of the M-Bus short frame
 impl ShortFrame {
     /// Create a new M-Bus short frame
-    pub fn new(control: u8, address: Address) -> Self {
+    pub fn new(control: Control, address: Address) -> Self {
         Self {
             start: START_BYTE,
-            control,
+            control: control.clone(),
             address: address.clone(),
-            checksum: control.wrapping_add(address.into()),
+            checksum: Self::compute_checksum(control, address),
             end: END_BYTE,
         }
+    }
+
+    /// Compute the checksum of a long frame
+    fn compute_checksum(control: Control, address: Address) -> u8 {
+        u8::from(control)
+            .wrapping_add(address.into())
     }
 }
 
@@ -86,7 +84,7 @@ impl Encodable for ShortFrame {
     fn to_bytes(&self) -> Vec<u8> {
         vec![
             self.start,
-            self.control,
+            self.control.into(),
             self.address.into(),
             self.checksum,
             self.end,
@@ -121,13 +119,22 @@ impl Encodable for ShortFrame {
 
         Ok(Self {
             start: bytes[START_INDEX],
-            control: bytes[CONTROL_INDEX],
+            control: bytes[CONTROL_INDEX].try_into()?,
             address: bytes[ADDRESS_INDEX].into(),
             checksum: bytes[CHECKSUM_INDEX],
             end: bytes[END_INDEX],
         })
     }
 }
+
+impl FrameWithControl for ShortFrame {
+    fn with_frame_count_bit(&self, fcb: bool) -> Self {
+        let mut new = self.clone();
+        new.control = self.control.with_frame_count_bit(fcb);
+        new
+    }
+}
+
 
 /// Errors that can occur when decoding an M-Bus short frame
 #[derive(Error, Debug)]
@@ -141,6 +148,9 @@ pub enum ShortFrameDecodeError {
     InvalidChecksum(u8, u8),
     #[error("invalid end byte for short frame, expected 0x16, got {0:#04x}")]
     InvalidEndByte(u8),
+    #[error("failed to decode control field: {0}")]
+    ControlDecodeError(#[from] crate::control::ControlDecodeError),
+
 }
 
 #[cfg(test)]
@@ -149,7 +159,7 @@ mod tests {
 
     #[test]
     fn it_encodes_the_frame_to_a_byte_vector() {
-        let frame = ShortFrame::new(0x40, Address::Primary(0x01));
+        let frame = ShortFrame::new(Control::Initialize, Address::Primary(0x01));
         let bytes = frame.to_bytes();
         assert_eq!(bytes, vec![0x10, 0x40, 0x01, 0x41, 0x16]);
     }
@@ -159,7 +169,7 @@ mod tests {
         let bytes = vec![0x10, 0x40, 0x01, 0x41, 0x16];
         let frame = ShortFrame::try_from_bytes(&bytes).unwrap();
         assert_eq!(frame.start, 0x10);
-        assert_eq!(frame.control, 0x40);
+        matches!(frame.control, Control::Initialize);
         matches!(frame.address, Address::Primary(0x01));
         assert_eq!(frame.checksum, 0x41);
         assert_eq!(frame.end, 0x16);
