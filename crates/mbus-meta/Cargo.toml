@@ -1,0 +1,11 @@
+[package]
+name = "mbus-meta"
+description = "Static metadata for M-Bus"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+authors = ["Nicolas Hedger <nicolas@hedger.ch>"]
+keywords = ["mbus", "m-bus", "meter-bus", "frame", "protocol"]
+
+[dependencies]
+thiserror = "2.0.16"

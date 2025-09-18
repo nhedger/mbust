@@ -1,5 +1,3 @@
 [workspace]
 resolver = "3"
-members = [
-    "crates/mbus-frame"
-]
+members = ["crates/mbus-frame", "crates/mbus-meta"]
